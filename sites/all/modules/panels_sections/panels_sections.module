@@ -1,0 +1,133 @@
+<?php
+// YOU ARE LOL
+
+define('PANELS_SECTIONS_PLACEHOLDER', '<!-- %%CONTENT%% -->');
+define('PANELS_SECTIONS_PANEL', 'panels_sections');
+
+/**
+ * Implement hook_ctools_plugin_directory
+ */
+function panels_sections_ctools_plugin_directory($module, $plugin) {
+  if ($module == 'ctools') {
+    return 'plugins/'. $plugin;
+  }
+}
+
+/**
+ * Implement hook_ctools_plugin_api().
+ */
+function panels_sections_ctools_plugin_api($module, $api) {
+  list($module, $api) = func_get_args();
+  if ($module == "page_manager" && $api == "pages_default") {
+    return array("version" => "1");
+  }
+}
+
+/**
+ * Implement hook_preprocess_page
+ */
+function panels_sections_preprocess_page(&$vars) {
+  ctools_include('page', 'page_manager', 'plugins/tasks');
+  $panel = panels_sections_page_manager_page_execute(PANELS_SECTIONS_PANEL);
+
+  // We don't proceed with placing panels_sections into the page template unless
+  // there it is successfully rendered. If there are pages where you do not want
+  // panels_sections to take over, ensure no panel variants pass the selection 
+  // rules for those pages.
+  if (!empty($panel)) {
+    if (strpos($panel, PANELS_SECTIONS_PLACEHOLDER) !== FALSE) {
+      // We have to escape the chevrons for the regex query
+      $replace = array('<' => '\<', '>' => '\>');
+      $search = str_replace(array_keys($replace), $replace, PANELS_SECTIONS_PLACEHOLDER);
+      
+      // Exploding on the first instance of the placeholder and appropriately 
+      // placing the prefix and suffix markup around the page content
+      list($prefix, $suffix) = preg_split('/'. $search .'/', $panel);
+      
+      $vars['page']['content']['system_main']['main']['#prefix'] = $prefix;
+      $vars['page']['content']['system_main']['main']['#suffix'] = $suffix;
+    }
+    else {
+      // There may be some use cases where the normal rendered content is 
+      // discarded. Generally, this should be avoided as it's a potential
+      // performance issue.
+      $vars['page']['content']['system_main']['main']['#markup'] = $panel;
+    }
+  }
+}
+
+function panels_sections_page_manager_page_execute($subtask_id) {
+  $page = page_manager_page_load($subtask_id);
+  $task = page_manager_get_task($page->task);
+  $subtask = page_manager_get_task_subtask($task, $subtask_id);
+
+  // Turn the contexts into a properly keyed array.
+  $contexts = array();
+  $args = array();
+  foreach (func_get_args() as $count => $arg) {
+    if (is_object($arg) && get_class($arg) == 'ctools_context') {
+      $contexts[$arg->id] = $arg;
+      $args[] = $arg->original_argument;
+    }
+    else if ($count) {
+      $args[] = $arg;
+    }
+  }
+
+  $count = 0;
+  $names = page_manager_page_get_named_arguments($page->path);
+  $bits = explode('/', $page->path);
+
+  if ($page->arguments) {
+    foreach ($page->arguments as $name => $argument) {
+      // Optional arguments must be converted to contexts too, if they exist.
+      if ($bits[$names[$name]][0] == '!') {
+        ctools_include('context');
+        $argument['keyword'] = $name;
+        if (isset($args[$count])) {
+          // Hack: use a special argument config variable to learn if we need
+          $plugin = ctools_get_argument($argument['name']);
+          // to use menu_tail style behavior:
+          if (empty($argument['settings']['use_tail'])) {
+            $value = $args[$count];
+          }
+          else {
+            $value = implode('/', array_slice($args, $count));
+          }
+
+          $context = ctools_context_get_context_from_argument($argument, $value);
+        }
+        else {
+          // make sure there is a placeholder context for missing optional contexts.
+          $context = ctools_context_get_context_from_argument($argument, NULL, TRUE);
+          // Force the title to blank for replacements
+        }
+        if ($context) {
+          $contexts[$context->id] = $context;
+        }
+      }
+      $count++;
+    }
+  }
+
+  // Add a fake tab for 'View' so that edit tabs can be added.
+  if (user_access('administer page manager') && (!isset($page->menu['type']) || !in_array($page->menu['type'], array('tab', 'default tab')))) {
+    ctools_include('menu');
+    ctools_menu_add_tab(array(
+      'title' => t('View'),
+      'href' => $_GET['q'],
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+      'weight' => -10,
+    ));
+  }
+
+
+  if ($function = ctools_plugin_get_function($task, 'page callback')) {
+    return call_user_func_array($function, array($page, $contexts, $args));
+  }
+
+  ctools_include('context-task-handler');
+  $output = ctools_context_handler_render($task, $subtask, $contexts, $args);
+
+  return $output;
+}

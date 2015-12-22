@@ -1,0 +1,22 @@
+# French translation of Responsive Dropdown Menus (7.x-1.1)
+# Copyright (c) 2015 by the French translation team
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Responsive Dropdown Menus (7.x-1.1)\n"
+"POT-Creation-Date: 2015-04-04 09:55+0000\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Language-Team: French\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n>1);\n"
+
+msgid "Menu"
+msgstr "Menu"
+msgid "Two"
+msgstr "Deux"
+msgid "Three"
+msgstr "Trois"
+msgid "Maximum depth"
+msgstr "Profondeur maximale"
